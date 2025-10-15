@@ -1,6 +1,8 @@
---// Zarizz Item Checker Mobile Edition 📱
+--// Zarizz Item Checker Mobile Edition 📱 - ENHANCED
 local player = game.Players.LocalPlayer
 local itemFolder = player:WaitForChild("Backpack")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 -- Rarity & Mutasi
 local rarityTable = {
@@ -18,12 +20,44 @@ local colors = {
     mythic = Color3.fromRGB(180, 60, 220),
     godly = Color3.fromRGB(255, 180, 40),
     secret = Color3.fromRGB(70, 200, 255),
+    secret_glow = Color3.fromRGB(100, 230, 255),
     unknown = Color3.fromRGB(100, 100, 120)
 }
 
 -- GUI Mobile Optimized
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "ZarizzMobileChecker"
+screenGui.ResetOnSpawn = false
+
+-- Memory management
+local connections = {}
+local animationConnections = {}
+
+local function cleanup()
+    for _, conn in ipairs(connections) do
+        conn:Disconnect()
+    end
+    for _, conn in ipairs(animationConnections) do
+        conn:Disconnect()
+    end
+    if screenGui then
+        screenGui:Destroy()
+    end
+end
+
+-- Auto-cleanup on player leave
+table.insert(connections, player.AncestryChanged:Connect(function()
+    if not player.Parent then
+        cleanup()
+    end
+end))
+
+-- Validate item folder
+if not itemFolder then
+    warn("❌ Backpack folder not found!")
+    cleanup()
+    return
+end
 
 local frame = Instance.new("Frame", screenGui)
 frame.Size = UDim2.new(0.9, 0, 0.8, 0)
@@ -87,6 +121,150 @@ local statsGrid = Instance.new("UIGridLayout", statsFrame)
 statsGrid.CellSize = UDim2.new(0.333, -5, 0.5, -5)
 statsGrid.CellPadding = UDim2.new(0, 5, 0, 5)
 
+-- Enhanced SECRET effects functions
+local function createSecretPulseAnimation(label, frame)
+    local connection
+    local pulseSpeed = 2
+    local originalColor = colors.secret
+    
+    connection = RunService.Heartbeat:Connect(function()
+        if not label or not label.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local pulse = (math.sin(tick() * pulseSpeed) + 1) / 2 -- 0 to 1
+        local glowIntensity = 0.3 + pulse * 0.7
+        
+        -- Pulsing text color
+        label.TextColor3 = originalColor:Lerp(colors.secret_glow, pulse)
+        
+        -- Pulsing background for the frame
+        if frame then
+            frame.BackgroundColor3 = colors.surface:Lerp(Color3.fromRGB(30, 40, 60), pulse * 0.3)
+        end
+    end)
+    table.insert(animationConnections, connection)
+end
+
+local function createSecretOrbitEffect(itemFrame)
+    -- Create orbiting particles around the item frame
+    local orbitContainer = Instance.new("Frame", itemFrame)
+    orbitContainer.Size = UDim2.new(1, 10, 1, 10)
+    orbitContainer.Position = UDim2.new(-0.05, 0, -0.05, 0)
+    orbitContainer.BackgroundTransparency = 1
+    orbitContainer.ClipsDescendants = false
+    
+    local particles = {}
+    local particleCount = 4
+    
+    for i = 1, particleCount do
+        local particle = Instance.new("Frame", orbitContainer)
+        particle.Size = UDim2.new(0, 4, 0, 4)
+        particle.BackgroundColor3 = colors.secret_glow
+        particle.BorderSizePixel = 0
+        particle.ZIndex = -1
+        
+        local corner = Instance.new("UICorner", particle)
+        corner.CornerRadius = UDim.new(1, 0)
+        
+        particles[i] = particle
+    end
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not orbitContainer or not orbitContainer.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local time = tick()
+        local radius = 15
+        local center = Vector2.new(orbitContainer.AbsoluteSize.X / 2, orbitContainer.AbsoluteSize.Y / 2)
+        
+        for i, particle in ipairs(particles) do
+            local angle = time * 3 + (i / particleCount) * (2 * math.pi)
+            local x = center.x + radius * math.cos(angle) - 2
+            local y = center.y + radius * math.sin(angle) - 2
+            
+            particle.Position = UDim2.new(0, x, 0, y)
+            
+            -- Size pulsing
+            local sizePulse = 0.8 + 0.4 * math.sin(time * 4 + i)
+            particle.Size = UDim2.new(0, 4 * sizePulse, 0, 4 * sizePulse)
+        end
+    end)
+    table.insert(animationConnections, connection)
+end
+
+local function createSecretShineEffect(itemFrame)
+    local shine = Instance.new("Frame", itemFrame)
+    shine.Size = UDim2.new(0.3, 0, 2, 0)
+    shine.BackgroundColor3 = Color3.new(1, 1, 1)
+    shine.BorderSizePixel = 0
+    shine.Position = UDim2.new(-0.3, 0, -0.5, 0)
+    shine.Rotation = 45
+    shine.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    local gradient = Instance.new("UIGradient", shine)
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1))
+    })
+    gradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.3, 0.8),
+        NumberSequenceKeypoint.new(0.5, 0.3),
+        NumberSequenceKeypoint.new(0.7, 0.8),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not shine or not shine.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local time = tick()
+        local slide = (math.sin(time * 0.5) + 1) / 2 -- 0 to 1
+        shine.Position = UDim2.new(slide * 1.6 - 0.3, 0, -0.5, 0)
+    end)
+    table.insert(animationConnections, connection)
+    
+    return shine
+end
+
+-- Optimized animation system
+local function createRainbowAnimation(label)
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not label or not label.Parent then
+            connection:Disconnect()
+            return
+        end
+        label.TextColor3 = Color3.fromHSV((tick() * 2) % 1, 0.8, 1)
+    end)
+    table.insert(animationConnections, connection)
+end
+
+local function addButtonEffect(button)
+    local originalColor = button.BackgroundColor3
+    
+    table.insert(connections, button.MouseButton1Down:Connect(function()
+        button.BackgroundColor3 = originalColor:Lerp(Color3.new(0, 0, 0), 0.3)
+    end))
+    
+    table.insert(connections, button.MouseButton1Up:Connect(function()
+        button.BackgroundColor3 = originalColor
+    end))
+    
+    table.insert(connections, button.MouseLeave:Connect(function()
+        button.BackgroundColor3 = originalColor
+    end))
+end
+
 local function createStatCard(rarity, count, color)
     local card = Instance.new("Frame")
     card.Size = UDim2.new(1, 0, 1, 0)
@@ -115,20 +293,15 @@ local function createStatCard(rarity, count, color)
             ColorSequenceKeypoint.new(1, color)
         })
     elseif rarity == "GODLY" then
-        -- Rainbow Animation
-        spawn(function()
-            while card.Parent do
-                for i = 0, 1, 0.05 do
-                    if not card.Parent then break end
-                    rarityLabel.TextColor3 = Color3.fromHSV(i, 1, 1)
-                    wait(0.1)
-                end
-            end
-        end)
+        createRainbowAnimation(rarityLabel)
     elseif rarity == "SECRET" then
-        local stroke = Instance.new("UIStroke", rarityLabel)
-        stroke.Color = Color3.new(0, 0, 0)
-        stroke.Thickness = 1.5
+        -- Enhanced SECRET stat card effect
+        createSecretPulseAnimation(rarityLabel, card)
+        
+        local stroke = Instance.new("UIStroke", card)
+        stroke.Color = colors.secret
+        stroke.Thickness = 2
+        stroke.Transparency = 0.5
     end
     
     local countLabel = Instance.new("TextLabel", card)
@@ -144,19 +317,41 @@ local function createStatCard(rarity, count, color)
     return card
 end
 
+-- Action Buttons Container
+local buttonsFrame = Instance.new("Frame", frame)
+buttonsFrame.Size = UDim2.new(1, -20, 0, 35)
+buttonsFrame.Position = UDim2.new(0, 10, 0, 130)
+buttonsFrame.BackgroundTransparency = 1
+
+local buttonsGrid = Instance.new("UIGridLayout", buttonsFrame)
+buttonsGrid.CellSize = UDim2.new(0.5, -5, 1, 0)
+buttonsGrid.CellPadding = UDim2.new(0, 5, 0, 0)
+
 -- Copy Button
-local copyBtn = Instance.new("TextButton", frame)
-copyBtn.Size = UDim2.new(1, -20, 0, 35)
-copyBtn.Position = UDim2.new(0, 10, 0, 130)
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(1, 0, 1, 0)
 copyBtn.BackgroundColor3 = colors.accent
 copyBtn.TextColor3 = colors.text
 copyBtn.Font = Enum.Font.GothamBold
 copyBtn.TextSize = 14
-copyBtn.Text = "📋 COPY STOCK LIST"
+copyBtn.Text = "📋 COPY STOCK"
 copyBtn.BorderSizePixel = 0
 
 local copyCorner = Instance.new("UICorner", copyBtn)
 copyCorner.CornerRadius = UDim.new(0, 8)
+
+-- Refresh Button
+local refreshBtn = Instance.new("TextButton")
+refreshBtn.Size = UDim2.new(1, 0, 1, 0)
+refreshBtn.BackgroundColor3 = colors.accent
+refreshBtn.TextColor3 = colors.text
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.TextSize = 14
+refreshBtn.Text = "🔄 REFRESH"
+refreshBtn.BorderSizePixel = 0
+
+local refreshCorner = Instance.new("UICorner", refreshBtn)
+refreshCorner.CornerRadius = UDim.new(0, 8)
 
 -- Items Grid
 local scrollFrame = Instance.new("ScrollingFrame", frame)
@@ -170,7 +365,26 @@ local grid = Instance.new("UIGridLayout", scrollFrame)
 grid.CellSize = UDim2.new(0.5, -5, 0, 60)
 grid.CellPadding = UDim2.new(0, 5, 0, 5)
 
--- Fungsi
+-- Search Functionality
+local searchBox = Instance.new("TextBox", frame)
+searchBox.Size = UDim2.new(1, -20, 0, 35)
+searchBox.Position = UDim2.new(0, 10, 0, 90)
+searchBox.BackgroundColor3 = colors.surface
+searchBox.TextColor3 = colors.text
+searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+searchBox.PlaceholderText = "🔍 Search items..."
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 14
+searchBox.Text = ""
+searchBox.ClearTextOnFocus = false
+
+local searchCorner = Instance.new("UICorner", searchBox)
+searchCorner.CornerRadius = UDim.new(0, 8)
+
+local searchPadding = Instance.new("UIPadding", searchBox)
+searchPadding.PaddingLeft = UDim.new(0, 10)
+
+-- Functions
 local function getRarity(itemName)
     for rarity, list in pairs(rarityTable) do
         for _, name in ipairs(list) do
@@ -180,82 +394,19 @@ local function getRarity(itemName)
     return "UNKNOWN"
 end
 
--- Scan items & collect data
-local rarityCounter = {MYTHIC = 0, GODLY = 0, SECRET = 0}
-local itemsByRarity = {MYTHIC = {}, GODLY = {}, SECRET = {}}
-
-for _, item in ipairs(itemFolder:GetChildren()) do
-    local name = item.Name
-    local rarity = getRarity(name)
-    
-    if rarity ~= "UNKNOWN" then
-        rarityCounter[rarity] = rarityCounter[rarity] + 1
-        table.insert(itemsByRarity[rarity], name)
+local function safeSetClipboard(text)
+    local success, err = pcall(function()
+        setclipboard(text)
+    end)
+    if not success then
+        -- Fallback for mobile devices or restricted environments
+        print("📋 Clipboard not available. Stock list printed to console:")
+        print(text)
+        return false
     end
+    return true
 end
 
--- Create stat cards
-createStatCard("MYTHIC", rarityCounter.MYTHIC, colors.mythic).Parent = statsFrame
-createStatCard("GODLY", rarityCounter.GODLY, colors.godly).Parent = statsFrame
-createStatCard("SECRET", rarityCounter.SECRET, colors.secret).Parent = statsFrame
-
--- Create item frames
-for rarity, items in pairs(itemsByRarity) do
-    for _, itemName in ipairs(items) do
-        local itemFrame = Instance.new("Frame", scrollFrame)
-        itemFrame.Size = UDim2.new(1, 0, 0, 60)
-        itemFrame.BackgroundColor3 = colors.surface
-        itemFrame.BorderSizePixel = 0
-        
-        local corner = Instance.new("UICorner", itemFrame)
-        corner.CornerRadius = UDim.new(0, 8)
-        
-        -- Rarity indicator
-        local rarityBar = Instance.new("Frame", itemFrame)
-        rarityBar.Size = UDim2.new(1, 0, 0, 3)
-        rarityBar.BackgroundColor3 = colors[rarity:lower()]
-        rarityBar.BorderSizePixel = 0
-        
-        -- Item name with effects
-        local nameLabel = Instance.new("TextLabel", itemFrame)
-        nameLabel.Size = UDim2.new(1, -10, 1, -5)
-        nameLabel.Position = UDim2.new(0, 5, 0, 3)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextColor3 = colors.text
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextSize = 12
-        nameLabel.TextWrapped = true
-        nameLabel.Text = itemName
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        
-        -- Apply text effects based on rarity
-        if rarity == "MYTHIC" then
-            local glow = Instance.new("UIGradient", nameLabel)
-            glow.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, colors.mythic),
-                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 255)),
-                ColorSequenceKeypoint.new(1, colors.mythic)
-            })
-        elseif rarity == "GODLY" then
-            spawn(function()
-                while nameLabel.Parent do
-                    for i = 0, 1, 0.03 do
-                        if not nameLabel.Parent then break end
-                        nameLabel.TextColor3 = Color3.fromHSV(i, 0.8, 1)
-                        wait(0.1)
-                    end
-                end
-            end)
-        elseif rarity == "SECRET" then
-            local stroke = Instance.new("UIStroke", nameLabel)
-            stroke.Color = Color3.new(1, 1, 1)
-            stroke.Thickness = 1
-            stroke.Transparency = 0.3
-        end
-    end
-end
-
--- Copy Function
 local function generateStockText()
     local lines = {}
     
@@ -288,35 +439,179 @@ local function generateStockText()
     return table.concat(lines, "\n")
 end
 
+local function createItemFrame(itemName, rarity)
+    local itemFrame = Instance.new("Frame")
+    itemFrame.Size = UDim2.new(1, 0, 0, 60)
+    itemFrame.BackgroundColor3 = colors.surface
+    itemFrame.BorderSizePixel = 0
+    itemFrame.Name = itemName -- For search functionality
+    
+    local corner = Instance.new("UICorner", itemFrame)
+    corner.CornerRadius = UDim.new(0, 8)
+    
+    -- Rarity indicator
+    local rarityBar = Instance.new("Frame", itemFrame)
+    rarityBar.Size = UDim2.new(1, 0, 0, 3)
+    rarityBar.BackgroundColor3 = colors[rarity:lower()]
+    rarityBar.BorderSizePixel = 0
+    
+    -- Item name with effects
+    local nameLabel = Instance.new("TextLabel", itemFrame)
+    nameLabel.Size = UDim2.new(1, -10, 1, -5)
+    nameLabel.Position = UDim2.new(0, 5, 0, 3)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = colors.text
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 12
+    nameLabel.TextWrapped = true
+    nameLabel.Text = itemName
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ClipsDescendants = true
+    
+    -- Apply text effects based on rarity
+    if rarity == "MYTHIC" then
+        local glow = Instance.new("UIGradient", nameLabel)
+        glow.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, colors.mythic),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 255)),
+            ColorSequenceKeypoint.new(1, colors.mythic)
+        })
+    elseif rarity == "GODLY" then
+        createRainbowAnimation(nameLabel)
+    elseif rarity == "SECRET" then
+        -- ENHANCED SECRET EFFECTS
+        createSecretPulseAnimation(nameLabel, itemFrame)
+        createSecretOrbitEffect(itemFrame)
+        createSecretShineEffect(itemFrame)
+        
+        -- Add a subtle inner glow
+        local innerGlow = Instance.new("UIStroke", itemFrame)
+        innerGlow.Color = colors.secret
+        innerGlow.Thickness = 2
+        innerGlow.Transparency = 0.7
+    end
+    
+    return itemFrame
+end
+
+local function filterItems(searchTerm)
+    for _, itemFrame in ipairs(scrollFrame:GetChildren()) do
+        if itemFrame:IsA("Frame") and itemFrame.Name then
+            local matchesSearch = searchTerm == "" or 
+                                itemFrame.Name:lower():find(searchTerm:lower())
+            itemFrame.Visible = matchesSearch
+        end
+    end
+end
+
+local function scanItems()
+    -- Clear existing items
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    -- Clear animation connections
+    for _, conn in ipairs(animationConnections) do
+        conn:Disconnect()
+    end
+    animationConnections = {}
+    
+    -- Scan items & collect data
+    rarityCounter = {MYTHIC = 0, GODLY = 0, SECRET = 0}
+    itemsByRarity = {MYTHIC = {}, GODLY = {}, SECRET = {}}
+
+    for _, item in ipairs(itemFolder:GetChildren()) do
+        local name = item.Name
+        local rarity = getRarity(name)
+        
+        if rarity ~= "UNKNOWN" then
+            rarityCounter[rarity] = rarityCounter[rarity] + 1
+            table.insert(itemsByRarity[rarity], name)
+        end
+    end
+    
+    -- Update stat cards
+    for _, child in ipairs(statsFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    createStatCard("MYTHIC", rarityCounter.MYTHIC, colors.mythic).Parent = statsFrame
+    createStatCard("GODLY", rarityCounter.GODLY, colors.godly).Parent = statsFrame
+    createStatCard("SECRET", rarityCounter.SECRET, colors.secret).Parent = statsFrame
+    
+    -- Create item frames
+    for rarity, items in pairs(itemsByRarity) do
+        for _, itemName in ipairs(items) do
+            local itemFrame = createItemFrame(itemName, rarity)
+            itemFrame.Parent = scrollFrame
+        end
+    end
+    
+    -- Auto-resize scroll
+    local itemCount = rarityCounter.MYTHIC + rarityCounter.GODLY + rarityCounter.SECRET
+    local rows = math.ceil(itemCount / 2)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(rows * 65, scrollFrame.AbsoluteSize.Y))
+    
+    return itemCount
+end
+
+-- Initial scan
+local rarityCounter, itemsByRarity
+local totalItems = scanItems()
+
+-- Parent buttons after functions are defined
+copyBtn.Parent = buttonsFrame
+refreshBtn.Parent = buttonsFrame
+
+-- Add button effects
+addButtonEffect(copyBtn)
+addButtonEffect(refreshBtn)
+addButtonEffect(closeBtn)
+
 -- Copy Button Action
-copyBtn.MouseButton1Click:Connect(function()
+table.insert(connections, copyBtn.MouseButton1Click:Connect(function()
     local stockText = generateStockText()
     
-    -- Set clipboard (using setclipboard if available, otherwise show in output)
-    pcall(function()
-        setclipboard(stockText)
-    end)
+    local success = safeSetClipboard(stockText)
     
     -- Visual feedback
     local originalText = copyBtn.Text
-    copyBtn.Text = "✅ COPIED!"
+    copyBtn.Text = success and "✅ COPIED!" or "📋 PRINTED!"
     
     wait(1.5)
     copyBtn.Text = originalText
     
-    print(" Stock List Copied to Clipboard!")
-    print("\n" .. stockText)
-end)
+    print(" Stock List " .. (success and "Copied to Clipboard!" or "Printed to Console!"))
+    if not success then
+        print("\n" .. stockText)
+    end
+end))
 
--- Auto-resize scroll
-local itemCount = rarityCounter.MYTHIC + rarityCounter.GODLY + rarityCounter.SECRET
-local rows = math.ceil(itemCount / 2)
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, rows * 65)
+-- Refresh Button Action
+table.insert(connections, refreshBtn.MouseButton1Click:Connect(function()
+    local originalText = refreshBtn.Text
+    refreshBtn.Text = "⏳ SCANNING..."
+    
+    local newCount = scanItems()
+    
+    refreshBtn.Text = "✅ UPDATED!"
+    wait(1)
+    refreshBtn.Text = originalText
+    
+    print("🔄 Inventory Rescanned! Found " .. newCount .. " rare items.")
+end))
+
+-- Search Functionality
+table.insert(connections, searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    filterItems(searchBox.Text)
+end))
 
 -- Close functionality
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
+table.insert(connections, closeBtn.MouseButton1Click:Connect(cleanup))
 
 -- Mobile optimization
 scrollFrame.ScrollingEnabled = true
@@ -327,4 +622,9 @@ print("📱 Zarizz Mobile Checker Loaded!")
 print("✨ Mythic:", rarityCounter.MYTHIC)
 print("🌟 Godly:", rarityCounter.GODLY)  
 print("💎 Secret:", rarityCounter.SECRET)
-print("📦 Total:", rarityCounter.MYTHIC + rarityCounter.GODLY + rarityCounter.SECRET)
+print("📦 Total:", totalItems)
+print("🔍 Search feature enabled")
+print("🔄 Refresh feature enabled")
+print("✨ Enhanced SECRET effects activated!")
+
+return screenGui
