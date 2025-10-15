@@ -628,6 +628,3 @@ print("🔄 Refresh feature enabled")
 print("✨ Enhanced SECRET effects activated!")
 
 return screenGui
-
-
-buat lebih canggih gui dan fungsiny
